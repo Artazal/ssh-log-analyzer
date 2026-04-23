@@ -1,0 +1,85 @@
+import subprocess
+import re
+import sys
+
+def get_ssh_logs(time_filter):
+        try:
+            result = subprocess.run(
+            ["journalctl", "-u", "ssh", "--since", time_filter, "--no-pager"],
+            capture_output=True,
+            text=True
+    )
+            return result.stdout
+        except Exception as e:
+            print(e)
+            return ""
+    
+def analyze_logs(log_text):
+    stats = {
+        "failed_password": 0,
+        "accepted_password": 0,
+        "invalid_user": 0,
+        "error": 0,
+        "warning": 0
+    }
+    failed_by_ip = {}
+    lines = log_text.splitlines()
+
+    for line in lines:
+        lower_line = line.lower()
+
+        if "failed password" in lower_line:
+            stats["failed_password"] += 1
+            match = re.search(r"\d+\.\d+\.\d+\.\d+", line)
+            if match:
+                ip = match.group()
+                failed_by_ip[ip] = failed_by_ip.get(ip, 0) + 1
+
+        if "accepted password" in lower_line:
+            stats["accepted_password"] += 1
+
+        if "invalid user" in lower_line:
+            stats["invalid_user"] += 1
+
+        if "error" in lower_line:
+            stats["error"] += 1
+
+        if "warning" in lower_line:
+            stats["warning"] += 1
+
+    sorted_ips = sorted(failed_by_ip.items(), key=lambda x: x[1], reverse=True)
+
+    return stats, sorted_ips
+
+
+def print_stats(stats):
+    print("\nLog analysis result:")
+    for key, value in stats.items():
+        print(f"{key}: {value}")
+def print_failed_by_ip(sorted_ips):
+    print("\nFailed password attempts from IP:\n")
+    for ip, count in sorted_ips:
+        label = ""
+        if count >= 50:
+            label =  "Brute force attack"
+        elif count >= 20:
+            label = "Suspicious"
+        if label:
+            print(f"{ip}: {count} {label}")
+        else:
+            print(f"{ip}: {count}")
+
+def main():
+    if len(sys.argv) > 1:
+        time_filter = " ".join(sys.argv[1:])
+    else:
+        time_filter = "1 hour ago"
+    logs = get_ssh_logs(time_filter)
+    stats, sorted_ips = analyze_logs(logs)
+    print(f"\nAnalyzing logs since: {time_filter}")
+    print_stats(stats)
+
+    print_failed_by_ip(sorted_ips)
+
+
+main()
