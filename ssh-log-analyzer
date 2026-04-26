@@ -1,19 +1,58 @@
 import subprocess
 import re
-import sys
+import json
+import argparse
+from tabulate import tabulate
 
-def get_ssh_logs(time_filter):
-        try:
-            result = subprocess.run(
-            ["journalctl", "-u", "ssh", "--since", time_filter, "--no-pager"],
+
+def get_ssh_logs(since_filter, until_filter=None):
+    try:
+        command = [
+            "journalctl",
+            "-u",
+            "ssh",
+            "--since",
+            since_filter,
+            "--no-pager"
+        ]
+            
+        if until_filter:
+            command.extend(["--until", until_filter])
+        result = subprocess.run(
+            command,
             capture_output=True,
-            text=True
-    )
-            return result.stdout
-        except Exception as e:
-            print(e)
-            return ""
+            text=True,
+            check=True
+        )
+
+        return result.stdout
+    except Exception as e:
+        print(e)
+        return ""
     
+
+def positive_int(value):
+    try:
+        ivalue = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("value must be an integer")
+
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError("value must be a positive integer (> 0)")
+
+    return ivalue
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="SSH Log Analyzer")
+    parser.add_argument("--last", help="Analyze last period (e.g. 30h, 2d, 15m)")
+    parser.add_argument("--since", help="Start time (e.g. '2026-04-24 10:00:00')")
+    parser.add_argument("--until", help="End time (e.g. '2026-04-24 12:00:00')")
+    parser.add_argument("--report", help="Save report to JSON file")
+    parser.add_argument("--top", type=positive_int, help="Set the amount of IPs with the most amount of login attempts")
+    return parser.parse_args()
+
+
 def analyze_logs(log_text):
     stats = {
         "failed_password": 0,
@@ -30,7 +69,7 @@ def analyze_logs(log_text):
 
         if "failed password" in lower_line:
             stats["failed_password"] += 1
-            match = re.search(r"\d+\.\d+\.\d+\.\d+", line)
+            match = re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", line)
             if match:
                 ip = match.group()
                 failed_by_ip[ip] = failed_by_ip.get(ip, 0) + 1
@@ -47,39 +86,96 @@ def analyze_logs(log_text):
         if "warning" in lower_line:
             stats["warning"] += 1
 
-    sorted_ips = sorted(failed_by_ip.items(), key=lambda x: x[1], reverse=True)
+    return stats, failed_by_ip
 
-    return stats, sorted_ips
+
+def sort_ips(failed_by_ip, top_n):
+    sorted_ips = sorted(failed_by_ip.items(), key=lambda x: x[1], reverse=True)
+    if top_n:
+        return sorted_ips[:top_n]
+    return sorted_ips
 
 
 def print_stats(stats):
     print("\nLog analysis result:")
     for key, value in stats.items():
         print(f"{key}: {value}")
+
+
+def get_label(count):
+    if count >= 50:
+        return "Brute force attack"
+    elif count >= 20:
+        return "Suspicious"
+    return ""
+
+
 def print_failed_by_ip(sorted_ips):
     print("\nFailed password attempts from IP:\n")
+
+    table = []
     for ip, count in sorted_ips:
-        label = ""
-        if count >= 50:
-            label =  "Brute force attack"
-        elif count >= 20:
-            label = "Suspicious"
-        if label:
-            print(f"{ip}: {count} {label}")
-        else:
-            print(f"{ip}: {count}")
+        table.append([
+            ip,
+            count,
+            get_label(count)
+        ])
+
+    print(tabulate(table, headers=["IP Address", "Attempts", "Status"], tablefmt="grid"))
+
+
+def build_report(stats, sorted_ips, since_filter, until_filter, top_n, filename):
+    ip_analysis = []
+
+    for ip, count in sorted_ips:
+        ip_analysis.append({
+            "ip": ip,
+            "attempts": count,
+            "label": get_label(count)
+        })
+
+    report_data = {
+        "stats": stats,
+        "ip_analysis": ip_analysis,
+        "since": since_filter,
+        "until": until_filter,
+        "top": top_n
+    }
+
+    with open(filename, "w") as file:
+        json.dump(report_data, file, indent=4)
+
 
 def main():
-    if len(sys.argv) > 1:
-        time_filter = " ".join(sys.argv[1:])
+    args = parse_args()
+    if args.last:
+        since_filter = f"{args.last} ago"
+    elif args.since:
+        since_filter = args.since
     else:
-        time_filter = "1 hour ago"
-    logs = get_ssh_logs(time_filter)
-    stats, sorted_ips = analyze_logs(logs)
-    print(f"\nAnalyzing logs since: {time_filter}")
+        since_filter = "1 hour ago"
+
+    until_filter = args.until
+    top_n = args.top
+
+    logs = get_ssh_logs(since_filter, until_filter)
+    stats, failed_by_ip = analyze_logs(logs)
+    sorted_ips = sort_ips(failed_by_ip, top_n)
+
+    print(f"\nAnalyzing logs since: {since_filter}")
+    if until_filter:
+        print(f"Analyzing logs until: {until_filter}")
+
+    if top_n:
+        print(f"\nThe top: {top_n} IPs:")
+
     print_stats(stats)
-
     print_failed_by_ip(sorted_ips)
+    
+    if args.report:
+        build_report(stats, sorted_ips, since_filter, until_filter, top_n, args.report)
+        print(f"\nReport saved to {args.report}")
 
 
-main()
+if __name__ == "__main__":
+    main()
