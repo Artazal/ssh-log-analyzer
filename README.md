@@ -1,36 +1,36 @@
-# ssh_log_analyzer
-CLI tool for analyzing SSH logs and detecting suspicious login attempts.
+# SSH Log Analyzer
 
-Simple CLI tool for analyzing SSH logs on Linux servers.
+CLI tool for analyzing SSH logs on Linux servers and detecting suspicious login activity.
 
-Detects failed login attempts, aggregates them by IP, and highlights suspicious or brute-force activity using data from `journalctl`.
+Parses `journalctl` logs, aggregates failed login attempts by IP address, and highlights potential brute-force attacks.
 
 ---
 
 ## Features
 
-- Count failed and successful SSH logins
+- Count failed and successful SSH login attempts
 - Detect invalid users
-- Aggregate failed attempts by IP
+- Aggregate failed login attempts by IP address
 - Sort IPs by number of attempts
 - Highlight:
   - Suspicious activity (20+ attempts)
   - Brute-force attacks (50+ attempts)
+- Clean tabular output in terminal
 - Flexible time filtering via `journalctl`
+- Optional JSON report export
 
 ---
 
-## Example Output:
+## Example Output
 
 <img width="860" height="1156" alt="image" src="https://github.com/user-attachments/assets/2d4006c8-6ba8-4e58-841d-9453edc1f1f0" />
-
 
 ---
 
 ## Requirements
 
 - Linux system with `journalctl`
-- Python 3
+- Python 3.8+
 
 ---
 
@@ -39,8 +39,125 @@ Detects failed login attempts, aggregates them by IP, and highlights suspicious 
 ```bash
 git clone https://github.com/yourname/ssh_log_analyzer.git
 cd ssh_log_analyzer
+pip install -r requirements.txt
+```
 
-## How to run (examples)::
-sudo python3 analyzer.py 30 minutes ago
-sudo python3 analyzer.py 2 hours ago
-sudo python3 analyzer.py 1 day ago
+---
+
+## Usage
+
+### Analyze recent logs
+
+```bash
+sudo python3 ssh_log_analyzer.py --last "30 minutes"
+sudo python3 ssh_log_analyzer.py --last "2 hours"
+sudo python3 ssh_log_analyzer.py --last "1 day"
+```
+
+---
+
+### Analyze specific time range
+
+```bash
+sudo python3 ssh_log_analyzer.py \
+  --since "2026-04-24 10:00:00" \
+  --until "2026-04-24 12:00:00"
+```
+
+---
+
+### Show top N attacking IPs
+
+```bash
+sudo python3 ssh_log_analyzer.py --last "1 day" --top 10
+```
+
+---
+
+### Save report to JSON
+
+```bash
+sudo python3 ssh_log_analyzer.py --last "1 day" --report report.json
+```
+
+---
+
+## Arguments
+
+| Argument   | Description |
+|-----------|------------|
+| `--last`   | Analyze logs from the last period (e.g. "30m", "2h", "1d") |
+| `--since`  | Start time (e.g. "2026-04-24 10:00:00") |
+| `--until`  | End time |
+| `--top`    | Show top N IPs by failed attempts |
+| `--report` | Save results to JSON file |
+
+---
+
+## How It Works
+
+1. Fetches logs using `journalctl`
+2. Parses SSH authentication events
+3. Extracts IP addresses
+4. Aggregates failed login attempts
+5. Labels suspicious or brute-force behavior
+6. Outputs results in a readable table
+
+---
+
+## Project Structure
+
+```bash
+ssh_log_analyzer/
+├── ssh_log_analyzer.py
+├── tests/
+│   └── test_analyzer.py
+├── requirements.txt
+├── README.md
+```
+
+---
+
+## Example JSON Report
+
+```json
+{
+  "stats": {
+    "failed_password": 120,
+    "accepted_password": 5,
+    "invalid_user": 40
+  },
+  "ip_analysis": [
+    {
+      "ip": "192.168.1.1",
+      "attempts": 80,
+      "label": "Brute force attack"
+    }
+  ],
+  "since": "1 day ago",
+  "until": null,
+  "top": 10
+}
+```
+
+---
+
+## Future Improvements
+
+- Configurable thresholds for attack detection
+- Support for additional log sources
+- Integration with alerting systems
+- IP geolocation enrichment
+
+---
+
+## Notes
+
+- Requires root privileges (`sudo`) to access system logs
+- Designed for Linux environments using systemd
+
+---
+
+## License
+
+MIT
