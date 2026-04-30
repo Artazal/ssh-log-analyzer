@@ -4,6 +4,9 @@ import json
 import argparse
 from tabulate import tabulate
 
+RED = "\033[91m"
+YELLOW = "\033[93m"
+RESET = "\033[0m"
 
 def get_ssh_logs(since_filter, until_filter=None):
     try:
@@ -114,11 +117,24 @@ def print_failed_by_ip(sorted_ips):
     print("\nFailed password attempts from IP:\n")
 
     table = []
+
     for ip, count in sorted_ips:
+        label = get_label(count)
+
+        if count >= 50:
+            count_display = f"{RED}{count}{RESET}"
+            label_display = f"{RED}{label}{RESET}"
+        elif count >= 20:
+            count_display = f"{YELLOW}{count}{RESET}"
+            label_display = f"{YELLOW}{label}{RESET}"
+        else:
+            count_display = str(count)
+            label_display = label
+
         table.append([
             ip,
-            count,
-            get_label(count)
+            count_display,
+            label_display
         ])
 
     print(tabulate(table, headers=["IP Address", "Attempts", "Status"], tablefmt="grid"))
@@ -177,5 +193,7 @@ def main():
         print(f"\nReport saved to {args.report}")
 
 
+if __name__ == "__main__":
+    main()
 if __name__ == "__main__":
     main()
