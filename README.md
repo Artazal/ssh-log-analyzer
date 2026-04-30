@@ -23,7 +23,8 @@ Parses `journalctl` logs, aggregates failed login attempts by IP address, and hi
 
 ## Example Output
 
-<img width="860" height="1156" alt="image" src="https://github.com/user-attachments/assets/2d4006c8-6ba8-4e58-841d-9453edc1f1f0" />
+<img width="864" height="2390" alt="image" src="https://github.com/user-attachments/assets/d8d58d52-17f0-4f5f-8096-2f81429e6737" />
+
 
 ---
 
