@@ -53,6 +53,7 @@ def parse_args():
     parser.add_argument("--until", help="End time (e.g. '2026-04-24 12:00:00')")
     parser.add_argument("--report", help="Save report to JSON file")
     parser.add_argument("--top", type=positive_int, help="Set the amount of IPs with the most amount of login attempts")
+    parser.add_argument("--threshold", type=positive_int, help="Threshold for brute force detection")
     return parser.parse_args()
 
 
@@ -105,26 +106,26 @@ def print_stats(stats):
         print(f"{key}: {value}")
 
 
-def get_label(count):
-    if count >= 50:
+def get_label(count, threshold):
+    if count >= threshold:
         return "Brute force attack"
-    elif count >= 20:
+    elif count >= threshold // 2:
         return "Suspicious"
     return ""
 
 
-def print_failed_by_ip(sorted_ips):
+def print_failed_by_ip(sorted_ips, threshold):
     print("\nFailed password attempts from IP:\n")
 
     table = []
 
     for ip, count in sorted_ips:
-        label = get_label(count)
+        label = get_label(count, threshold)
 
-        if count >= 50:
+        if count >= threshold:
             count_display = f"{RED}{count}{RESET}"
             label_display = f"{RED}{label}{RESET}"
-        elif count >= 20:
+        elif count >= threshold // 2:
             count_display = f"{YELLOW}{count}{RESET}"
             label_display = f"{YELLOW}{label}{RESET}"
         else:
@@ -164,6 +165,7 @@ def build_report(stats, sorted_ips, since_filter, until_filter, top_n, filename)
 
 def main():
     args = parse_args()
+    threshold = args.threshold if args.threshold else 50
     if args.last:
         since_filter = f"{args.last} ago"
     elif args.since:
@@ -186,7 +188,7 @@ def main():
         print(f"\nThe top: {top_n} IPs:")
 
     print_stats(stats)
-    print_failed_by_ip(sorted_ips)
+    print_failed_by_ip(sorted_ips, threshold)
     
     if args.report:
         build_report(stats, sorted_ips, since_filter, until_filter, top_n, args.report)
