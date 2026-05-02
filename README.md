@@ -12,9 +12,10 @@ Parses `journalctl` logs, aggregates failed login attempts by IP address, and hi
 - Detect invalid users
 - Aggregate failed login attempts by IP address
 - Sort IPs by number of attempts
+- Brute Force Detection Threshold
 - Highlight:
-  - Suspicious activity (20+ attempts)
-  - Brute-force attacks (50+ attempts)
+  - Suspicious activity
+  - Brute-force attacks
 - Clean tabular output in terminal
 - Flexible time filtering via `journalctl`
 - Optional JSON report export
@@ -72,7 +73,22 @@ sudo python3 ssh_log_analyzer.py \
 ```bash
 sudo python3 ssh_log_analyzer.py --last "1 day" --top 10
 ```
+### Brute Force Detection Threshold
+By default, the script uses a threshold of 50 failed attempts to classify an IP as a brute-force attack.
+You can override this value using the --threshold argument:
 
+```bash
+python3 ssh_log_analyzer.py --last 5h --threshold 70
+```
+How it works
+
+* Brute force attack → attempts ≥ threshold
+* Suspicious → attempts ≥ threshold / 2
+
+Example with --threshold 70:
+
+* 70+ attempts → Brute force
+* 35–69 attempts → Suspicious
 ---
 
 ### Save report to JSON
